@@ -1,0 +1,112 @@
+<script src="https://www.webrtc-experiment.com/socket.io.js"> </script>
+<script src="https://www.webrtc-experiment.com/RTCPeerConnection-v1.5.js"> </script>
+<script src="https://www.webrtc-experiment.com/video-conferencing/conference.js"> </script>
+<script src="https://www.webrtc-experiment.com/firebase.js"> </script>
+<button id="setup-new-room">Setup New Conference</button>
+<table style="width: 100%;" id="rooms-list"></table>
+<table style="width: 100%;" id="users-list"></table>
+<link rel="stylesheet" type="text/css" href="style.css" />
+<div id="videos-container"></div>
+
+<script>
+    var config = {
+        openSocket: function (config) {
+        var channel = config.channel ;
+        var socket = new Firebase('https://chat.firebaseIO.com/' + channel);
+        socket.channel = channel;
+        socket.on('child_added', function (data) {
+            config.onmessage(data.val());
+        });
+        socket.send = function (data) {
+            this.push(data);
+        }
+        config.onopen && setTimeout(config.onopen, 1);
+        socket.onDisconnect().remove();
+        return socket;
+    },
+        onRemoteStream: function(media) {
+            var video = media.video;
+            video.setAttribute('controls', true);
+            video.setAttribute('id', media.stream.id);
+			var tr1 = document.createElement('tr');
+            tr1.innerHTML = '<td><strong>' + media.sender + '</strong> </td>' +
+                           '<td></td>';
+			userList.insertBefore(tr1, userList.firstChild);
+			videosContainer.insertBefore(video, videosContainer.firstChild);
+            video.play();
+        },
+        onRemoteStreamEnded: function(stream) {
+            var video = document.getElementById(stream.id);
+            if (video) video.parentNode.removeChild(video);
+        },
+        onRoomFound: function(room) {
+            var alreadyExist = document.querySelector('button[data-broadcaster="' + room.broadcaster + '"]');
+            if (alreadyExist) return;
+
+            var tr = document.createElement('tr');
+            tr.innerHTML = '<td><strong>' + room.roomName + '</strong> shared a conferencing room with you!</td>' +
+                           '<td><button class="join">Join</button></td>';
+            roomsList.insertBefore(tr, roomsList.firstChild);
+
+			//var tr1 = document.createElement('tr');
+            //tr1.innerHTML = '<td><strong>' + prompt('Enter Your name', 'Anonymous') + '</strong> </td>' +
+            //               '<td></td>';
+			//userList.insertBefore(tr1, userList.firstChild);
+
+            var joinRoomButton = tr.querySelector('.join');
+            joinRoomButton.setAttribute('data-broadcaster', room.broadcaster);
+            joinRoomButton.setAttribute('data-roomToken', room.broadcaster);
+			//joinRoomButton.setAttribute('data-user',prompt('Enter Your name', 'Anonymous'));
+			//joinRoomButton.setAttribute('data-user',prompt('Enter Your name', 'Anonymous'));
+            joinRoomButton.onclick = function() {
+                this.disabled = true;
+				
+                var broadcaster = this.getAttribute('data-broadcaster');
+                var roomToken = this.getAttribute('data-roomToken');
+			//	var user=this.getAttribute('data-user');
+				//var tr1 = document.createElement('tr');
+				//tr1.innerHTML = '<td><strong>' + user + '</strong> </td>' +
+               //            '<td></td>';
+				//userList.insertBefore(tr1, userList.firstChild);
+                captureUserMedia(function() {
+                    conferenceUI.joinRoom({
+                        roomToken: roomToken,
+                        joinUser: broadcaster,
+						
+                    });
+                });
+            };
+			
+        }
+    };
+
+    var conferenceUI = conference(config);
+    var videosContainer = document.getElementById('videos-container') || document.body;
+    var roomsList = document.getElementById('rooms-list');
+	var userList=document.getElementById('users-list');
+
+    document.getElementById('setup-new-room').onclick = function () {
+        this.disabled = true;
+        captureUserMedia(function () {
+            conferenceUI.createRoom({
+                roomName: prompt('Enter Room name', 'Anonymous')
+            });
+        });
+    };
+
+    function captureUserMedia(callback) {
+        var video = document.createElement('video');
+        video.setAttribute('autoplay', true);
+        video.setAttribute('controls', true);
+        videosContainer.insertBefore(video, videosContainer.firstChild);
+
+       getUserMedia({
+          video: video,
+           onsuccess: function (stream) {
+               config.attachStream = stream;
+                video.setAttribute('muted', true);
+               callback();
+            }
+        });
+    }
+</script>
